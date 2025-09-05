@@ -1,0 +1,561 @@
+{
+  "name": "aidan-doctor-agentic-n8n",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "177ed7e7-49e8-42e3-98bd-177810f39bab",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        -384
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.nhs.uk/conditions/",
+        "responseFormat": "string",
+        "options": {}
+      },
+      "id": "435be7b0-08d8-4e29-8d77-28db30695428",
+      "name": "Fetch NHS Conditions Index",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -384
+      ]
+    },
+    {
+      "parameters": {
+        "extractionValues": {
+          "values": [
+            {
+              "key": "name_illness",
+              "cssSelector": "ul.nhsuk-list--border.nhsuk-list--links li a"
+            },
+            {
+              "key": "href",
+              "cssSelector": "ul.nhsuk-list--border.nhsuk-list--links li a",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {
+          "trimValues": false
+        }
+      },
+      "id": "6746440c-009d-4d01-914d-bfad26fc99d1",
+      "name": "Extract Condition Links",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        -384
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "return items.flatMap(item => {\n  const urls = item.json.href; // array\n  const names = item.json.name_illness\n    .split('\\n')\n    .map(n => n.trim())\n    .filter(n => n); // clean empty strings\n\n  // map each name to its corresponding URL\n  return urls.map((url, i) => ({\n    json: {\n      illness_name: names[i],\n      url: 'https://www.nhs.uk' + url\n    }\n  }));\n});"
+      },
+      "id": "df0ce67b-ced1-4195-85e0-5dd9ad24b2da",
+      "name": "\"Illness name\": \"URL\" function",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        64,
+        -384
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json[\"url\"]}}",
+        "responseFormat": "string",
+        "dataPropertyName": "site_data",
+        "options": {
+          "batchInterval": "={{$randomInt(700, 3000)}}",
+          "batchSize": 1
+        }
+      },
+      "id": "456b7fd6-167a-4de2-bad9-734a3bd8686b",
+      "name": "Extract Web Info for Each Illness",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        432,
+        -576
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "dataPropertyName": "site_data",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "text",
+              "cssSelector": "main#maincontent article"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        592,
+        -576
+      ],
+      "id": "46893c32-0d13-4eaf-8d3f-3606c105003a",
+      "name": "HTML"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": "nhs_conditions",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1.3,
+      "position": [
+        816,
+        -576
+      ],
+      "id": "6b2e2a7f-055a-41fa-8d76-0f3fbffa2cfe",
+      "name": "Postgres PGVector Store",
+      "credentials": {
+        "postgres": {
+          "id": "PPq1wOtRk0M8RJsE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        768,
+        -336
+      ],
+      "id": "b80e4842-6319-4a14-9d08-8067f2d858c2",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "JtEWIUif1WmFdkUg",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "illness_name",
+                "value": "={{ $('Cut to 10 URLs').item.json.illness_name }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        -336
+      ],
+      "id": "e579bbe4-f9f5-40a9-a52d-99d06a280faa",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "content": "# Step 1: Scrap website for information about illnesses\n\n",
+        "height": 608,
+        "width": 1872
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -640
+      ],
+      "id": "06813533-fbcf-4907-850e-45786a00dc54",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        112
+      ],
+      "id": "63931003-0f3d-4573-9487-6c26085182d1",
+      "name": "When chat message received",
+      "webhookId": "4091fa09-fb9a-4039-9411-7104d213f601"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, text, metadata, embedding \nFROM nhs_conditions \nLIMIT 2;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1136,
+        -576
+      ],
+      "id": "3919ae65-0bd8-45cc-97e6-1e0b0331be73",
+      "name": "Visualize Your Table",
+      "credentials": {
+        "postgres": {
+          "id": "PPq1wOtRk0M8RJsE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chunkSize": 10000,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        896,
+        -176
+      ],
+      "id": "ac566f0c-4962-4d81-b5d0-fc34d160962b",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "name": "text",
+        "topK": {}
+      },
+      "id": "1b6dc291-fded-4c02-8883-a4b74efddd65",
+      "name": "Answer questions with a vector store",
+      "type": "@n8n/n8n-nodes-langchain.toolVectorStore",
+      "position": [
+        528,
+        304
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a helpful assistant "
+        }
+      },
+      "id": "aaed42e7-abe3-43fc-946d-31551c0914c2",
+      "name": "AI Agent1",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        320,
+        112
+      ],
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "79f99a55-720b-447c-90ee-0d0556ea792c",
+      "name": "OpenAI Chat Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        320,
+        592
+      ],
+      "typeVersion": 1.1,
+      "credentials": {
+        "openAiApi": {
+          "id": "8dAeYYkW2GSISV9B",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableName": "nhs_conditions",
+        "options": {}
+      },
+      "id": "bfef9b95-71af-4a3c-bab9-d58adf72b03e",
+      "name": "Postgres PGVector Store1",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "position": [
+        768,
+        592
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "postgres": {
+          "id": "PPq1wOtRk0M8RJsE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableName": "",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        416,
+        336
+      ],
+      "id": "8aa512ef-e96b-4c78-b309-59315e4a5511",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "PPq1wOtRk0M8RJsE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# AI Agent connected to RAG (PostgresSQL database)\n",
+        "height": 752,
+        "width": 1872,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        0
+      ],
+      "id": "6422e1c3-131f-46bd-98f7-2f152efc654f",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.slice(0, 10);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        -384
+      ],
+      "id": "19c43b97-edfc-4804-801b-ddce1bd50ade",
+      "name": "Cut to 10 URLs",
+      "notes": "This is temporary. You can later Scrape the Website for more data "
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Fetch NHS Conditions Index",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch NHS Conditions Index": {
+      "main": [
+        [
+          {
+            "node": "Extract Condition Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Condition Links": {
+      "main": [
+        [
+          {
+            "node": "\"Illness name\": \"URL\" function",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "\"Illness name\": \"URL\" function": {
+      "main": [
+        [
+          {
+            "node": "Cut to 10 URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Web Info for Each Illness": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        [
+          {
+            "node": "Postgres PGVector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Postgres PGVector Store",
+            "type": "ai_embedding",
+            "index": 0
+          },
+          {
+            "node": "Postgres PGVector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Postgres PGVector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres PGVector Store": {
+      "main": [
+        [
+          {
+            "node": "Visualize Your Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer questions with a vector store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Answer questions with a vector store",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres PGVector Store1": {
+      "ai_vectorStore": [
+        [
+          {
+            "node": "Answer questions with a vector store",
+            "type": "ai_vectorStore",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cut to 10 URLs": {
+      "main": [
+        [
+          {
+            "node": "Extract Web Info for Each Illness",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1ed2923b-86c9-45ff-8b89-882084153335",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "987ad246cd30399d76843656fa8413bdfb8289222ffba241939091aec3679f1b"
+  },
+  "id": "Lp2i9WBMCuOsqwUm",
+  "tags": []
+}
